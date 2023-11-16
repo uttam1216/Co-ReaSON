@@ -13,7 +13,6 @@ pd.options.mode.chained_assignment = None
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pylab import rcParams
-#!pip install PyWavelets
 import pywt
 import matplotlib.pylab as plt
 import operator
@@ -28,7 +27,7 @@ import csv
 import random
 from scipy.stats import kurtosis,skew
 
-# function to load data from postgresql table into pandas data frames
+# function to load data(TUHEEG Metadata) from postgresql table into pandas data frames
 def load_df(table_name):
     try:
         #conn = psycopg2.connect(host='localhost', dbname='tuheeg', user='tuheeg_user', password='tuheeg', port=5432)
