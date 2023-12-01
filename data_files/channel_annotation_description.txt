@@ -1,0 +1,13 @@
+channel          - channel in which seizure/non-seizure occurs
+start_time       - start time of seizure/non-seizure
+stop_time        - stop time of seizure or non-seizure
+label            - seizure/non-seizure
+confidence       - confidence of label being correctly annotated
+session_id       - session of recording
+t_id             - time_id in case multiple seizures happens in one session
+tcp_ref          - reference type (average or linked_ear)
+file_path        - path where eeg file of the patient is kept
+session_date     - data of data collection from patient
+row_creation     - row creation time in database
+row_updation     - row updation time in database
+ 
