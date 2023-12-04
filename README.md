@@ -21,6 +21,6 @@ where train_test_folder_path is the path where you have the preprocessed data wi
 <b> <i> python3 model.py train_dataset_path test_dataset_path num_epochs </i> </b> <br>
 such that train_dataset_path is the path where training data is kept, test_dataset_path is the location of the test dataset, and num_epochs is an optional parameter giving the number of epochs for which you want to train the model. To change other parameters of the model, code can be changed in model.py for further research and experiments. <br>
 
-<b> code_files contains Python codes for data_preprocessing, feature extraction, model and an utilities file with many common functions. </b> <br>
-<b> data_files contains some important files with the feature format of the data and their descriptions to aid reproducibility. </b> <br>
-<b> We also share a few model input screenshots and the results obtained. Upon further requests, other required resources can be shared. </b> <br>
+<b> code_files </b> contains Python codes for data_preprocessing, feature extraction, model and an utilities file with many common functions.  <br>
+<b> data_files </b> contains some important files with the feature format of the data and their descriptions to aid reproducibility. <br>
+We also share a few <b> model input screenshots </b> and the <b> results </b> obtained. Upon further requests, other required resources can be shared. <br>
