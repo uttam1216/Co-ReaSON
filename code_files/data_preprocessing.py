@@ -39,7 +39,10 @@ def insert_data_in_postgres_tables(pat_ses_tcps):
                     for pat_ses_fin in glob.glob(ses_tcps):
                         tcp_id = pat_ses_fin.split('/')[-1]
                         end_files = pat_ses_fin + '/*'
+                        #we skip first 5 rows as they contain comments and metadata
                         for end_file in glob.glob(end_files):
+                            t_id = end_file.split('/')[-1].split('.')[0].split('_')[-1]
+                            file_type = ''
                             if end_file.split('.')[-1] == 'csv':
                                 file_type = 'channel_annotation'
                                 channel_df = pd.read_csv(end_file, skiprows=5)
@@ -65,7 +68,7 @@ def insert_data_in_postgres_tables(pat_ses_tcps):
                                                                                              end_file, ses_date)
                             elif end_file.split('.')[-1] == 'edf':
                                 file_type = 'edf'
-                            t_id = end_file.split('/')[-1].split('.')[0].split('_')[-1]
+
                             # insert data in patient table
                             num_rows_inserted += insert_in_patient(fol_id, pat_id, ses_id, tcp_id, t_id, ses_date,
                                                                    end_file, file_type)
@@ -79,6 +82,7 @@ def process_seiz_non_seiz_records_for_storage(fnsz_seiz_channel_df):
     # %%capture
     lst_main_excp, lst_pstr_label_excp, lst_exception, lst_pstr_label_elec_nsbst_nsast_done = [], [], [], []  # global variables
     ctr, num_rows_inserted_for_seiz, num_rows_inserted_for_non_seiz_bs, num_rows_inserted_for_non_seiz_as = 0, 0, 0, 0  # temp var just for testing and breaking after 1 record
+    pstr, label = '', ''
     try:
         # for row in seiz_excpt_gnsz_channel_df.itertuples(index=False):   # EXCEPT GNSZ
         for row in fnsz_seiz_channel_df.itertuples(index=False):
@@ -104,13 +108,12 @@ def process_seiz_non_seiz_records_for_storage(fnsz_seiz_channel_df):
                         print('                                                                   ')
                         print('...STARTING TO PROCESS SEIZURE RECORD for electrode: ', ref_electrode)
                         # call function get_all_elec_dependent_params to get all params values
-                        bos_vec, dos_vec, aos_vec, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, nn1, nn2, nn3, nn4, c_bos_nn1, c_dos_nn1, c_aos_nn1, c_bos_nn2, c_dos_nn2, c_aos_nn2, c_bos_nn3, c_dos_nn3, c_aos_nn3, c_bos_nn4, c_dos_nn4, c_aos_nn4, seiz_onset, non_seizure_occurrence, remarks = get_all_elec_dependent_params(
+                        bos_vec, dos_vec, aos_vec, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, nn1, nn2, nn3, nn4, c_bos_nn1, c_dos_nn1, c_aos_nn1, c_bos_nn2, c_dos_nn2, c_aos_nn2, c_bos_nn3, c_dos_nn3, c_aos_nn3, c_bos_nn4, c_dos_nn4, c_aos_nn4, seiz_onset, non_seizure_occurrence, remarks = get_all_elec_dependent_params(
                             raw, ref_electrode, start_time, electrode, lst_ch_names, row.tcp_ref, 1, '', '')
 
-                        # print(pstr, label, electrode, t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12, c_bos_nn1,c_dos_nn1,c_aos_nn1,c_bos_nn2,c_dos_nn2,c_aos_nn2,c_bos_nn3,c_dos_nn3,c_aos_nn3,c_bos_nn4,c_dos_nn4,c_aos_nn4, nn1, nn2, nn3, nn4, seiz_onset, start_time, stop_time, confidence, file_path, non_seizure_occurrence, dataset_type, remarks)
                         ## insert values in table for each electrode
                         num_rows_inserted_for_seiz += insert_in_seiz_non_seiz(pstr, label, electrode, t1, t2, t3, t4,
-                                                                              t5, t6, t7, t8, t9, t10, t11, t12,
+                                                                              t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16,
                                                                               c_bos_nn1, c_dos_nn1, c_aos_nn1,
                                                                               c_bos_nn2, c_dos_nn2, c_aos_nn2,
                                                                               c_bos_nn3, c_dos_nn3, c_aos_nn3,
@@ -182,15 +185,14 @@ def process_insertion_for_term_seiz_non_seizure_records(term_df, lst_valid_elect
                         if term_seiz == 1:  ##print('...STARTING TO PROCESS TERM SEIZURE RECORDS...')
                             if start_time > 6 and stop_time > 12:
                                 # call function get_all_elec_dependent_params to get all params values
-                                bos_vec, dos_vec, aos_vec, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, nn1, nn2, nn3, nn4, c_bos_nn1, c_dos_nn1, c_aos_nn1, c_bos_nn2, c_dos_nn2, c_aos_nn2, c_bos_nn3, c_dos_nn3, c_aos_nn3, c_bos_nn4, c_dos_nn4, c_aos_nn4, seiz_onset, non_seizure_occurrence, remarks = get_all_elec_dependent_params(
+                                bos_vec, dos_vec, aos_vec, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, nn1, nn2, nn3, nn4, c_bos_nn1, c_dos_nn1, c_aos_nn1, c_bos_nn2, c_dos_nn2, c_aos_nn2, c_bos_nn3, c_dos_nn3, c_aos_nn3, c_bos_nn4, c_dos_nn4, c_aos_nn4, seiz_onset, non_seizure_occurrence, remarks = get_all_elec_dependent_params(
                                     raw, ref_electrode, start_time, electrode, lst_ch_names, row.tcp_ref, 1, 'ts', ' ')
-                                # print(pstrst, patient_id, pstr, label, electrode, t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12, c_bos_nn1,c_dos_nn1,c_aos_nn1,c_bos_nn2,c_dos_nn2,c_aos_nn2,c_bos_nn3,c_dos_nn3,c_aos_nn3,c_bos_nn4,c_dos_nn4,c_aos_nn4, nn1, nn2, nn3, nn4, seiz_onset, start_time, stop_time, confidence, file_path, non_seizure_occurrence, dataset_type, remarks)
                                 ## insert values in table for each electrode
                                 try:
                                     num_rows_inserted_for_seiz += insert_in_term_seiz_non_seiz(pstrst, patient_id, pstr,
                                                                                                label, electrode, t1, t2,
                                                                                                t3, t4, t5, t6, t7, t8,
-                                                                                               t9, t10, t11, t12,
+                                                                                               t9, t10, t11, t12, t13, t14, t15, t16,
                                                                                                c_bos_nn1, c_dos_nn1,
                                                                                                c_aos_nn1, c_bos_nn2,
                                                                                                c_dos_nn2, c_aos_nn2,
@@ -308,7 +310,7 @@ def process_data_cleanup_and_stats(fnsz_channel_df, term_df, output_folder_path)
     bckg_term_ar_df = bckg_term_ar_df.sort_values(by=['dur'])
     bckg_term_ar_df = bckg_term_ar_df[['pstr', 'start_time', 'stop_time', 'file_path', 'dur']]
     bckg_term_ar_df['posbl_rec'] = bckg_term_ar_df[
-                                       'dur'] / 16  # 16 sec is our max time interval for extracting features
+                                       'dur'] / 16  # 16 sec is our max time interval for extracting features but this does not mean that windows of > 16 sec are not possible
     bckg_term_ar_df['posbl_rec'] = bckg_term_ar_df['posbl_rec'].apply(lambda x: math.floor(x))
     bckg_term_ar_df['lst_s_e'] = bckg_term_ar_df.apply(
         lambda row: fetch_non_seiz_start_ends(row.start_time, row.posbl_rec), axis=1)

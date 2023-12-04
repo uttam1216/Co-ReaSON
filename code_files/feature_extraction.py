@@ -95,26 +95,6 @@ def save_eeg_extracted_images(df,output_folder,lst_channels_to_save,seiz_non_sei
            save_eeg_channel_images(edf_file_path, output_file_path, lst_channels_to_save, row.start_time, row.start_time+(window_dur)) #row.stop_time
 
 
-# function to create folders named upon patients and move all files in respective folder
-# before this, also keep all images at one place after sanity check for full black outs..which should be deleted
-def arrange_images(orig_folder,parent_folder):
-    #e.g. orig_folder = all_fnsz_onset_train_images, parent_folder = fnsz_onset_train
-    # copy it to patient wise folders to check patterns
-    lst_pat = []
-    for fin in glob.glob('/media/data/ukumar/iBehave/data_files/'+orig_folder+'/*'):
-        #get a list of all patients to create folders with those names
-        temp_pat = fin.split('/')[-1].split('__')[0]
-        lst_pat.append(temp_pat)
-    lst_unq_pat = reduce(lambda acc,elem: acc+[elem] if not elem in acc else acc , lst_pat, [])
-    for item in lst_unq_pat:
-        os.makedirs('/media/data/ukumar/iBehave/data_files/'+parent_folder+'/'+item, exist_ok=True)
-    for fin in glob.glob('/media/data/ukumar/iBehave/data_files/'+orig_folder+'/*.png'):
-        file_name = fin.split('/')[-1]
-        patient_id_folder = file_name.split('__')[0]
-        new_path='/media/data/ukumar/iBehave/data_files/'+parent_folder+'/'+patient_id_folder+'/'+file_name
-        shutil.copy(fin, new_path)
-
-
 ### Apply Discrete Wavelet Transform and add Features for train test dfs
 # func. to read edf & apply notch & butterworth filter & return digitalized signal inclusive of all chnls in list
 def fetch_filtered_eeg_lst_chnls(raw, output_file_path, lst_channels_to_save, start_time, end_time):
@@ -128,18 +108,15 @@ def fetch_filtered_eeg_lst_chnls(raw, output_file_path, lst_channels_to_save, st
         raw.crop(tmin=start_time, tmax=end_time)
         # print('After cropping: ',raw)
 
-        ##raw.filter(l_freq=0.1, h_freq=64)
-        ##print('After 0.1-64: ',raw)
-
         # data_ch, times = raw.get_data(picks=ref_electrode, return_times=True, start=start_time, stop=end_time)
         # above one gives of single electrode, below one gives for a list of electrodes
         data_ch, times = raw.get_data(picks=lst_channels_to_save, return_times=True, start=start_time, stop=end_time)
         # print('data_ch.shape: ',data_ch.shape)
-        # print('data_ch', data_ch) 17 channels of duration 0 to start_time+6 sec
 
+        #setting parameters for the application of butterworth filter
         lowcut, highcut, nyquist_freq, b_order = 0.1, 64, (raw.info['sfreq'] / 2.0), 2
         # print('nyquist_freq: ',nyquist_freq)
-        # b_order is order of butterworth filter
+        # b_order is order of butterworth filter which we use as 2
         sos = butter(b_order, [lowcut / nyquist_freq, highcut / nyquist_freq], btype='band', output='sos')
         # print('sos: ',sos)
         ## Apply the filter to the signal
@@ -151,28 +128,7 @@ def fetch_filtered_eeg_lst_chnls(raw, output_file_path, lst_channels_to_save, st
         pass
 
 
-# func. to read edf & apply notch & butterworth filter & return digitalized signal inclusive of one electrode
-def fetch_filtered_eeg_for_elec(raw, output_file_path, ref_electrode, start_time, end_time):
-    try:
-        # Set the time period for which you want to save the images
-        duration = end_time - start_time
-        raw.crop(tmin=start_time, tmax=end_time)
-        data_ch, times = raw.get_data(picks=ref_electrode, return_times=True, start=start_time, stop=end_time)
-        lowcut, highcut, nyquist_freq, b_order = 0.1, 64, (raw.info['sfreq'] / 2.0), 2
-        # b_order is the order of butterworth filter
-        sos = butter(b_order, [lowcut / nyquist_freq, highcut / nyquist_freq], btype='band', output='sos')
-        # Apply the filter to the signal
-        filtered_signal = sosfilt(sos, data_ch)
-        # print('filtered_signal shape: ',filtered_signal.shape) #1 channel of duration 0 to start_time+6 sec
-        # print(filtered_signal)
-        return filtered_signal
-    except Exception as ex:
-        print('Exception came for file and start & end times: ', start_time, end_time)
-        print(ex)
-        pass
-
-
-# function to apply DB10 to the filtered eeg signal
+# function to apply Discrete Wavelet Transform of a certain DB (e.g. 4 or 10) and level (e.g. 4) to the filtered eeg signal
 def apply_wavelet_transform(signal, db, level):
     # Daubechies 10 wavelet transform with given level
     coeffs = pywt.wavedec(signal, db, level=level)
@@ -190,18 +146,18 @@ def save_db10A4_eeg_images(df,output_file_path,lst_channels_to_save,window_dur):
                # i.e. only if file does not already exist, do following
                raw = load_notch_filtered_eeg(row.file_path.replace('edf_bi','edf').replace('csv_bi','edf').replace('csv','edf'))
                fil_sig_for_elec = fetch_filtered_eeg_lst_chnls(raw, 'none', lst_channels_to_save, 0, math.floor(row.start_time+(window_dur/2)))
-               print('\n fil_sig_for_elec is: ',fil_sig_for_elec)
-               #taking total 8 sec, 4 sec before and 4 sec after the start time
-               #print('fil_sig_for_elec.shape[-1]',fil_sig_for_elec.shape[-1])
+               #taking full window length of the signal
                fil_tf_inc_onset = fil_sig_for_elec[:,fil_sig_for_elec.shape[-1]-window_dur:fil_sig_for_elec.shape[-1]]
-               # Apply wavelet transform
+               # Apply wavelet transform DB10 Level 4
                wavelet_coeffs_db10 = apply_wavelet_transform(fil_tf_inc_onset, 'db10', 4)
+               #A4 coefficients for whole window duration that needs to be mapped into image
                cA4 = wavelet_coeffs_db10[0]
                x = np.linspace(0, window_dur, 18)
                y = np.asarray(cA4)
                plt.plot(x, y.T)
                plt.xlabel("Time(s)")
                plt.ylabel("Elec (µV)")
+               #saving the A4 mapped image to be used as one of the model inputs
                plt.savefig(output_file_path+file_name)
                plt.show()
                plt.close()
@@ -318,15 +274,15 @@ def get_kurtosiss(d1, d2, d3, d4, a4):
 
 
 # function to collect DWT related features of a filtered EEG signal data, returns list of 35 lists
-def get_dwt_features(raw, out_fol, lst_channels_to_save, start_time, end_time):
+def get_dwt_features(raw, out_fol, lst_channels_to_save, start_time, end_time, win_dur):
     fil_sig_for_elec = fetch_filtered_eeg_lst_chnls(raw, out_fol, lst_channels_to_save, start_time, end_time)
-    # for all channels, take last 16 sec data points for applying debauchies
-    fil_16_sec_inc_onset = fil_sig_for_elec[:, fil_sig_for_elec.shape[-1] - 16:fil_sig_for_elec.shape[-1]]
+    # for all channels, take last win_dur time interval number of seconds data points for applying debauchies
+    fil_win_dur_inc_onset = fil_sig_for_elec[:, fil_sig_for_elec.shape[-1] - win_dur:fil_sig_for_elec.shape[-1]]
     # Apply wavelet transform DB10 Level 4 only for getting permuatation entropy
-    wc_db10l4 = apply_wavelet_transform(fil_16_sec_inc_onset, 'db10', 4)
+    wc_db10l4 = apply_wavelet_transform(fil_win_dur_inc_onset, 'db10', 4)
     pd1, pd2, pd3, pd4, pd5 = get_permut_entropy(wc_db10l4[4], wc_db10l4[3], wc_db10l4[2], wc_db10l4[1], wc_db10l4[0])
     # Apply wavelet transform DB4 Level 4 for other entropy and energy features
-    wc_db4l4 = apply_wavelet_transform(fil_16_sec_inc_onset, 'db4', 4)
+    wc_db4l4 = apply_wavelet_transform(fil_win_dur_inc_onset, 'db4', 4)
     #                                        D1,          D2,          D3,          D4,          A4
     sh1, sh2, sh3, sh4, sh5 = get_shan_entropy(wc_db4l4[4], wc_db4l4[3], wc_db4l4[2], wc_db4l4[1], wc_db4l4[0])
     sk1, sk2, sk3, sk4, sk5 = get_skeww(wc_db4l4[4], wc_db4l4[3], wc_db4l4[2], wc_db4l4[1], wc_db4l4[0])
@@ -357,11 +313,13 @@ def get_lst_chnlwise_features(lst_channels_to_save):
     return lst_chnlwise_feat
 
 
-# function to add features upon teh train and test set dfs
+# function to add features upon the train and test set dfs
 def add_dwt_features_to_df(df, lst_channels_to_save, lst_chnlwise_feat, start_time_diff_factor, stop_time_diff_factor,
                            seiz_onset):
     # start_time_diff_factor - from what time before the start time should the signal be taken into consideration
+    # its value is window time interval / 2
     # stop_time_diff_factor - until what time after the onset/non-seizure-start should the signal be considered
+    # its value is window time interval / 2
     lst_excp, temp_pstrst = [], ''
     # since the images have __ instead of $ so we make a new col with __ instead of $
     df['uid'] = df['pstrst'].apply(lambda x: x.replace('$', '__'))
@@ -373,7 +331,7 @@ def add_dwt_features_to_df(df, lst_channels_to_save, lst_chnlwise_feat, start_ti
         raw = load_notch_filtered_eeg(row.file_path)
         try:
             F = get_dwt_features(raw, 'none', lst_channels_to_save, math.floor(row.start_time - start_time_diff_factor),
-                                 math.floor(row.start_time + stop_time_diff_factor))
+                                 math.floor(row.start_time + stop_time_diff_factor), start_time_diff_factor*2)
             lst_chnlwise_feat_val = []
             for lst_item in F:
                 for ch_feat_val in lst_item:
@@ -389,7 +347,7 @@ def add_dwt_features_to_df(df, lst_channels_to_save, lst_chnlwise_feat, start_ti
 
 # function to get dwt features added in the dfs
 def get_dwt_added_features_in_dfs(fnsz_onset_features_test_df, fnsz_onset_features_train_df, non_seiz_features_test_df,
-                                  non_seiz_features_train_df, lst_channels_to_save, output_folder_path):
+                                  non_seiz_features_train_df, lst_channels_to_save, output_folder_path, win_dur):
     # list of features based on dwt column names per electrode for all selected electrodes
     lst_chnlwise_feat = get_lst_chnlwise_features(lst_channels_to_save)
     # get dfs with added dwt features, additionally get exception description if got any while making the features
@@ -441,12 +399,14 @@ def plot_corr_mean_comparison(df,out_file_path):
     print('                                                               ')
 
 
-# function to save correlations features
-# TO BE REVISED IN TERMS OF NODES PROVIDED BY USER TOBE SAVED
-def save_corr_image(df,brain_reg_to_rem,out_data_folder,out_img_folder,ns_corr_mean_df):
+# function to save correlations features in case we remove nodes from a part of brain region
+# the dataset being passed has already limited number of features as per the list of nodes for which it is desired by user
+def save_corr_image(df,brain_reg_to_rem,out_data_folder,out_img_folder,ns_corr_mean_df,len_corr_features):
+    # brain_reg_to_rem i svariable that indicated which brain region is to be removed ..i.e. P-Parietal,F-Frontal,T-Temporal,O-Occipital,C-Central,A- All to be retained
+    # len_corr_features indicates total length of correlation features in dataframe columns ot be utilized for further processing
     tot_cnt, ctr = 0, 0
-    # list of all possible 1-hop nn electrodes
-    lst_sig_nn_col = list(df.columns[-33:-1])
+    # list of 1-hop nn electrodes to be taken from the dataframe
+    lst_sig_nn_col = list(df.columns[-(len_corr_features+1):-1])
     # list of all possible i-hop nn electrodes - one brain region electrodes
     # Parietal P4 and Frontal e.g. FP1 to be distinguished correctly 'FP2-F8', 'F4-F8', 'P3-O1', 'P3-PZ'
     if brain_reg_to_rem == 'P':
@@ -461,8 +421,6 @@ def save_corr_image(df,brain_reg_to_rem,out_data_folder,out_img_folder,ns_corr_m
        lst_sig_nn_col = new_lst
     else:
        lst_sig_nn_col = [x for x in lst_sig_nn_col if brain_reg_to_rem not in x]
-    #print('lst_sig_nn_col: ',lst_sig_nn_col)
-    #print(len(lst_sig_nn_col))
     lst_req_cols = ['uid'] + lst_sig_nn_col
     sel_df = df[lst_req_cols]
     for row in sel_df.itertuples(index=False):
@@ -471,7 +429,6 @@ def save_corr_image(df,brain_reg_to_rem,out_data_folder,out_img_folder,ns_corr_m
         # for this same patient find mean values for same columns (elec pairs)
         patient_id = row.uid.split('__')[0]
         sel_pat_non_seiz_corr_mean_df = ns_corr_mean_df.loc[ns_corr_mean_df['patient_id']==patient_id]
-        #print(sel_pat_non_seiz_corr_mean_df)
         if len(sel_pat_non_seiz_corr_mean_df) > 0:
            for i in range(len(lst_sig_nn_col)):
                lst_sig_nn_col_vals.append(row[-(len(lst_sig_nn_col))+i])
@@ -480,12 +437,10 @@ def save_corr_image(df,brain_reg_to_rem,out_data_folder,out_img_folder,ns_corr_m
                if mean_ns_val is None:
                   mean_ns_val = round(sel_pat_non_seiz_corr_mean_df.loc[sel_pat_non_seiz_corr_mean_df['nn_nn_rev']==lst_sig_nn_col[i]]['mean_corr'].values[0],2)
                lst_sig_nn_col_ns_mean_vals.append(mean_ns_val)
-           #print(patient_id,len(sel_pat_non_seiz_corr_mean_df),lst_sig_nn_col,lst_sig_nn_col_vals,lst_sig_nn_col_ns_mean_vals)
            # form a dataframe of these lists to then form an image
            temp_pdf_data = {'nn_nn': lst_sig_nn_col, 'curr_win_corr': lst_sig_nn_col_vals, 'non_seiz_mean_corr': lst_sig_nn_col_ns_mean_vals}
            pat_wise_corr_df = pd.DataFrame(temp_pdf_data, columns = ['nn_nn','curr_win_corr','non_seiz_mean_corr'])
            pat_wise_corr_df['uid'] = row.uid
-           #print(pat_wise_corr_df)
            pat_wise_corr_df.to_csv(out_data_folder+str(row.uid)+'.pkl', index=False)
            plot_corr_mean_comparison(pat_wise_corr_df,out_img_folder+str(row.uid)+'.png')
            ctr+=1
@@ -493,7 +448,7 @@ def save_corr_image(df,brain_reg_to_rem,out_data_folder,out_img_folder,ns_corr_m
 
 
 # following function adds correlation features and then saves images for given EEG channels as per df
-def add_sig_corr_feat(df, lst_channels_to_save, tem_cen_nn, seiz_onset):
+def add_sig_corr_feat(df, lst_channels_to_save, tem_cen_nn, win_dur, seiz_onset):
     lst_excp_pstrst, ctr = [], 0
     df.drop('label', axis=1, inplace=True)
     df = df.reindex(df.columns.tolist() + tem_cen_nn, axis=1)
@@ -504,16 +459,17 @@ def add_sig_corr_feat(df, lst_channels_to_save, tem_cen_nn, seiz_onset):
                 # i.e. only if file does not already exist, do following
                 raw = load_notch_filtered_eeg(row.file_path)
                 fil_sig_for_elec = fetch_filtered_eeg_lst_chnls(raw, 'none', lst_channels_to_save, 0,
-                                                                math.floor(row.start_time + 4))
-                ##next taking total 8 sec, 4 sec before and 4 sec after the start time
-                fil_4_sec_inc_onset = fil_sig_for_elec[:, fil_sig_for_elec.shape[-1] - 8:fil_sig_for_elec.shape[-1]]
+                                                                math.floor(row.start_time + win_dur/2))
+                ##values for signal to be taken for teh entire window length
+                fil_win_dur_inc_onset = fil_sig_for_elec[:, fil_sig_for_elec.shape[-1] - win_dur:fil_sig_for_elec.shape[-1]]
                 for elec_comb in tem_cen_nn:
                     elec_1 = elec_comb.split('-')[0]
                     elec_2 = elec_comb.split('-')[-1]
                     idx_e1 = lst_channels_to_save.index('EEG ' + elec_1 + '-REF')
                     idx_e2 = lst_channels_to_save.index('EEG ' + elec_2 + '-REF')
-                    temp_corr, p_value = pearsonr(fil_4_sec_inc_onset[idx_e1].ravel(),
-                                                  fil_4_sec_inc_onset[idx_e2].ravel())
+                    #finding pearson correlation coefficient for the given window length time interval
+                    temp_corr, p_value = pearsonr(fil_win_dur_inc_onset[idx_e1].ravel(),
+                                                  fil_win_dur_inc_onset[idx_e2].ravel())
                     tem_cen_nn_vals.append(round(temp_corr, 2))
                 for i in range(len(tem_cen_nn)):
                     df.at[index, tem_cen_nn[i]] = tem_cen_nn_vals[i]
@@ -526,7 +482,7 @@ def add_sig_corr_feat(df, lst_channels_to_save, tem_cen_nn, seiz_onset):
     return df, ctr, lst_excp_pstrst
 
 
-# function to have brain region wise possible one hop neighbors at one place
+# function to have brain region wise possible one hop neighbors as per the EEG Graph - 10/20 system of electrodes placement on human scalp
 def get_lst_participating_brain_part_nn(brain_part_lst, st_all_nn):
     lst_brain_part_participat_nn = []
     for elec in brain_part_lst:
@@ -542,9 +498,9 @@ def get_lst_participating_brain_part_nn(brain_part_lst, st_all_nn):
 # function to get dwt features added in the dfs and save the built pickle file
 def get_corr_added_features_in_dfs(valid_fnsz_onset_dwt_feat_test_df, valid_fnsz_onset_dwt_feat_train_df,
                                    valid_non_seiz_dwt_feat_test_df, valid_non_seiz_dwt_feat_train_df,
-                                   output_folder_path, lst_channels_to_save, one_hop_nn):
+                                   output_folder_path, lst_channels_to_save, one_hop_nn, win_dur):
     valid_fnsz_onset_corr_feat_test_df, c, lst_excp = add_sig_corr_feat(valid_fnsz_onset_dwt_feat_test_df,
-                                                                        lst_channels_to_save, one_hop_nn, 1)
+                                                                        lst_channels_to_save, one_hop_nn, win_dur, 1)
     # c=30, removing all rows where exception came due to NaN encountered while finding correlations with node vectors of certain time intervals
     valid_fnsz_onset_corr_feat_test_df = valid_fnsz_onset_corr_feat_test_df.loc[
         ~valid_fnsz_onset_corr_feat_test_df['pstrst'].isin(lst_excp)]
@@ -552,7 +508,7 @@ def get_corr_added_features_in_dfs(valid_fnsz_onset_dwt_feat_test_df, valid_fnsz
     valid_fnsz_onset_corr_feat_test_df.to_pickle(output_folder_path + 'corr/fnsz_onset_corr_feat_test.pkl')
 
     valid_fnsz_onset_corr_feat_train_df, c_ts, lst_excp_c_ts = add_sig_corr_feat(valid_fnsz_onset_dwt_feat_train_df,
-                                                                                 lst_channels_to_save, one_hop_nn, 1)
+                                                                                 lst_channels_to_save, one_hop_nn, win_dur, 1)
     # c_ts = 108, removing all rows where exception came due to NaN encountered while finding correlations with node vectors of certain time intervals
     valid_fnsz_onset_corr_feat_train_df = valid_fnsz_onset_corr_feat_train_df.loc[
         ~valid_fnsz_onset_corr_feat_train_df['pstrst'].isin(lst_excp_c_ts)]
@@ -560,7 +516,7 @@ def get_corr_added_features_in_dfs(valid_fnsz_onset_dwt_feat_test_df, valid_fnsz
     valid_fnsz_onset_corr_feat_train_df.to_pickle(output_folder_path + 'corr/fnsz_onset_corr_feat_train.pkl')
 
     valid_non_seiz_corr_feat_test_df, c_tns, lst_excp_tns = add_sig_corr_feat(valid_non_seiz_dwt_feat_test_df,
-                                                                              lst_channels_to_save, one_hop_nn, 0)
+                                                                              lst_channels_to_save, one_hop_nn, win_dur, 0)
     # c_tns = 12, removing all rows where exception came due to NaN encountered while finding correlations with node vectors of certain time intervals
     valid_non_seiz_corr_feat_test_df = valid_non_seiz_corr_feat_test_df.loc[
         ~valid_non_seiz_corr_feat_test_df['pstrst'].isin(lst_excp_tns)]
@@ -568,7 +524,7 @@ def get_corr_added_features_in_dfs(valid_fnsz_onset_dwt_feat_test_df, valid_fnsz
     valid_non_seiz_corr_feat_test_df.to_pickle(output_folder_path + 'corr/fnsz_ns_corr_feat_test.pkl')
 
     valid_non_seiz_corr_feat_train_df, c_trns, lst_excp_trns = add_sig_corr_feat(valid_non_seiz_dwt_feat_train_df,
-                                                                                 lst_channels_to_save, one_hop_nn, 0)
+                                                                                 lst_channels_to_save, one_hop_nn, win_dur, 0)
     # c_trns=47, removing all rows where exception came due to NaN encountered while finding correlations with node vectors of certain time intervals
     valid_non_seiz_corr_feat_train_df = valid_non_seiz_corr_feat_train_df.loc[
         ~valid_non_seiz_corr_feat_train_df['pstrst'].isin(lst_excp_trns)]
@@ -578,15 +534,15 @@ def get_corr_added_features_in_dfs(valid_fnsz_onset_dwt_feat_test_df, valid_fnsz
     return valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df
 
 #function to save eeg images for given number of nodes for all dfs(i.e. test train seiz non-seiz)
-def save_eeg_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df):
+def save_eeg_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df, output_folder_path, lst_channels_to_save, win_dur):
     save_eeg_extracted_images(valid_fnsz_onset_corr_feat_test_df, output_folder_path+'eeg/test/sz/', lst_channels_to_save, 'seiz', win_dur)
     save_eeg_extracted_images(valid_fnsz_onset_corr_feat_train_df, output_folder_path + 'eeg/train/sz/', lst_channels_to_save, 'seiz', win_dur)
-    save_eeg_extracted_images(valid_non_seiz_corr_feat_test_df, output_folder_path + 'eeg/test/ns/', lst_channels_to_save, 'seiz', win_dur)
-    save_eeg_extracted_images(valid_non_seiz_corr_feat_train_df, output_folder_path + 'eeg/train/ns/', lst_channels_to_save, 'seiz', win_dur)
+    save_eeg_extracted_images(valid_non_seiz_corr_feat_test_df, output_folder_path + 'eeg/test/ns/', lst_channels_to_save, 'non_seiz', win_dur)
+    save_eeg_extracted_images(valid_non_seiz_corr_feat_train_df, output_folder_path + 'eeg/train/ns/', lst_channels_to_save, 'non_seiz', win_dur)
 
 
 # function to save correlation images of different test train seizure non-seizure dfs for given number of channels(LENGTH OF CORR COLUMNS TO BE PLOTTED TO BE CHECKED) and window duration
-def save_correlation_graph_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df, out_data_folder):
+def save_correlation_graph_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df, out_data_folder, len_corr_features):
         # next to save the correlation features into images for model input, we first load non seizure mean df also as computed during data processing as a mean of non-seizure duration per patient
         pat_elec_mean_corr_descrtz_bckg_term_df = pd.read_csv(
             out_data_folder+'other_files/pat_elec_mean_corr_descrtz_bckg_term.csv')
@@ -594,10 +550,10 @@ def save_correlation_graph_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, va
             lambda row: (row['electrode'] + '-' + row['nn']), axis=1)
         pat_elec_mean_corr_descrtz_bckg_term_df['nn_nn_rev'] = pat_elec_mean_corr_descrtz_bckg_term_df.apply(
             lambda row: (row['nn'] + '-' + row['electrode']), axis=1)
-        tot_cnt_stest, ctr_stest = save_corr_image(valid_fnsz_onset_corr_feat_test_df, 'A', out_data_folder+'corr/foc_test/', out_data_folder+'corr/test/sz/', pat_elec_mean_corr_descrtz_bckg_term_df)
-        tot_cnt_strain, ctr_strain = save_corr_image(valid_fnsz_onset_corr_feat_train_df,'A', out_data_folder+'corr/foc_train/',out_data_folder+'corr/train/sz/', pat_elec_mean_corr_descrtz_bckg_term_df)
-        tot_cnt_nstest, ctr_nstest = save_corr_image(valid_non_seiz_corr_feat_test_df, 'A', out_data_folder+'corr/fnsc_test/', out_data_folder+'corr/test/ns/', pat_elec_mean_corr_descrtz_bckg_term_df)
-        tot_cnt_nstrain, ctr_nstrain = save_corr_image(valid_non_seiz_corr_feat_train_df, 'A', out_data_folder+'corr/fnsc_train/', out_data_folder+'corr/train/ns/', pat_elec_mean_corr_descrtz_bckg_term_df)
+        tot_cnt_stest, ctr_stest = save_corr_image(valid_fnsz_onset_corr_feat_test_df, 'A', out_data_folder+'corr/foc_test/', out_data_folder+'corr/test/sz/', pat_elec_mean_corr_descrtz_bckg_term_df, len_corr_features)
+        tot_cnt_strain, ctr_strain = save_corr_image(valid_fnsz_onset_corr_feat_train_df,'A', out_data_folder+'corr/foc_train/',out_data_folder+'corr/train/sz/', pat_elec_mean_corr_descrtz_bckg_term_df, len_corr_features)
+        tot_cnt_nstest, ctr_nstest = save_corr_image(valid_non_seiz_corr_feat_test_df, 'A', out_data_folder+'corr/fnsc_test/', out_data_folder+'corr/test/ns/', pat_elec_mean_corr_descrtz_bckg_term_df, len_corr_features)
+        tot_cnt_nstrain, ctr_nstrain = save_corr_image(valid_non_seiz_corr_feat_train_df, 'A', out_data_folder+'corr/fnsc_train/', out_data_folder+'corr/train/ns/', pat_elec_mean_corr_descrtz_bckg_term_df, len_corr_features)
         # counters returned by save_corr_image could be printed to get number of images saved
 
 def save_dwt_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df,
@@ -672,7 +628,7 @@ if __name__ == '__main__':
 
     # Check if correct number of arguments is provided
     if len(sys.argv) < 3:
-        print('Please give train_test_folder_path and output_folder_path to proceed!')
+        print('Please at least give train_test_folder_path and output_folder_path to proceed!')
         print(
             "Usage: python3 feature_extraction.py train_test_folder_path output_folder_path time_interval_window_length eeg_graph_nodes")
         sys.exit()
@@ -702,33 +658,31 @@ if __name__ == '__main__':
     # call function to perform DWT of the EEG signal and then take DWT statistical features added in the train test dfs
     valid_fnsz_onset_dwt_feat_test_df, valid_fnsz_onset_dwt_feat_train_df, valid_non_seiz_dwt_feat_test_df, valid_non_seiz_dwt_feat_train_df = get_dwt_added_features_in_dfs(
         fnsz_onset_features_test_df, fnsz_onset_features_train_df, non_seiz_features_test_df,
-        non_seiz_features_train_df, lst_channels_to_save, output_folder_path)
+        non_seiz_features_train_df, lst_channels_to_save, output_folder_path, win_dur)
 
     # get list of brain region wise one hop nearest neighbors...lst_nodes can have electrodes in number from 1 to max 19 as per our EEG Graph defined in paper
     lst_brain_parts_nn = get_lst_participating_brain_part_nn(lst_nodes, all_nn)
     # we find the number of 1 hop nearest neighbors for which we will compute the correlations so as to use them in future
     len_corr_columns = len(lst_brain_parts_nn)
 
-    # call function to get all correlations features added in the train test dfs
+    # call function to get all correlations features added in the train test dfs for the given channels and given window
     valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df = get_corr_added_features_in_dfs(
         valid_fnsz_onset_dwt_feat_test_df, valid_fnsz_onset_dwt_feat_train_df, valid_non_seiz_dwt_feat_test_df,
-        valid_non_seiz_dwt_feat_train_df, output_folder_path, lst_channels_to_save, lst_brain_parts_nn)
+        valid_non_seiz_dwt_feat_train_df, output_folder_path, lst_channels_to_save, lst_brain_parts_nn, win_dur)
 
     # returned dataframes now are rich in both i.e. dwt features + correlation features
     # next we save the dataframe wise correlations images into graphs which will be used as model input
-    save_correlation_graph_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df)
+    save_correlation_graph_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df, output_folder_path, len_corr_columns)
 
     # save eeg images for given number of nodes for a window for all dfs(i.e. test train seiz non-seiz)
-    #NEED TO CHECK NUMBER OF FEATURE COLUMNS BEING TAKEN FOR PLOTTING THE GRAPH..SHOULD BE AS PER CHANNELS_TO_BE_SAVED
-    save_eeg_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df, output_folder_path, win_dur)
+    save_eeg_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df, output_folder_path, lst_channels_to_save, win_dur)
 
     # save DWT A4 coefficient images for given number of nodes for a window for all dfs(i.e. test train seiz non-seiz)
-    # NEED TO CHECK NUMBER OF FEATURE COLUMNS BEING TAKEN FOR PLOTTING THE GRAPH..SHOULD BE AS PER CHANNELS_TO_BE_SAVED
     save_dwt_images_for_dfs(valid_fnsz_onset_corr_feat_test_df, valid_fnsz_onset_corr_feat_train_df, valid_non_seiz_corr_feat_test_df, valid_non_seiz_corr_feat_train_df, output_folder_path, lst_channels_to_save, win_dur)
 
-    # COMBINE INPUT IMAGES FOR Model input
+    # Combine all three types of generated images for Model Input
     # list of paths for loading three types of input images for combining and then keeping the combined images to a destined path
     db10_lst, corr_lst, raw_lst, cb_lst = create_lists_of_image_paths(output_folder_path)
 
     #call function to process the combination of the input images and save them
-    combine_brain_parts_images(corr_lst)
+    combine_brain_parts_images(corr_lst) #we pass only corr_lst as by replaceing a folder name we use files of dwt, raw and combined ones

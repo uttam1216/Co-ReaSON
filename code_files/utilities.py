@@ -24,7 +24,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from scipy.stats import kurtosis, skew, entropy
 
 pd.options.mode.chained_assignment = None
-data_folder = '/media/data/ukumar/iBehave/data_files/'
+data_folder = '/media/data/anonymous_user/anonymous_project/data_files/'
 
 
 # function to load data(TUHEEG Metadata) from postgresql table into pandas data frames
@@ -189,7 +189,7 @@ def agg_st_tm(lst):
 
 
 ## function to frame a df with valid seizure onset times
-# contents: pstr, lst_seiz_start_times, unq_chnls_in_val_cnt having seiz_duration_all_chnl < 12 sec removed
+# contents: pstr, lst_seiz_start_times, unq_chnls_in_val_cnt having seiz_duration_all_chnl < 16 sec removed
 def frame_seiz_onset_df(seizType_stats_df, seizType_channel_df, seizType):
     ctr = 0
     lst_pstr, lst_file_path, lst_lst_unq_chnls_desc, lst_lst_seiz_start_times, lst_lst_lst_chnls, lst_lst_lst_stop_times = [], [], [], [], [], []
